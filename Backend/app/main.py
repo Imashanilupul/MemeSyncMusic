@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
-from api.uploadMusic import router as Music_Uploader
+from app.api.uploadMusic import router as Music_Uploader
 
 app = FastAPI(title="MemeSyncMusic API")
 
