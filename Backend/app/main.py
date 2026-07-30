@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 import os
 
 from app.api.uploadMusic import router as Music_Uploader
+from app.api.analyze import router as analyze_router
 
 app = FastAPI(title="MemeSyncMusic API")
 
@@ -22,6 +23,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 app.include_router(Music_Uploader)
+app.include_router(analyze_router)
 
 
 @app.get("/")
