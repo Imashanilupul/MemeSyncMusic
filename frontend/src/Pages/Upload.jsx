@@ -1,5 +1,5 @@
 import { useState } from "react";
-import api from "../services/api";
+import { uploadMusic } from "../Services/api";
 import { useNavigate } from "react-router-dom";
 
 
@@ -34,23 +34,15 @@ function Upload() {
       setLoading(true);
 
 
-      const response = await api.post(
-        "/upload",
-        formData,
-        {
+      const response = await uploadMusic(formData, (event) => {
 
-          onUploadProgress:(event)=>{
+        const percentage = Math.round(
+          (event.loaded * 100) / event.total
+        );
 
-            const percentage = Math.round(
-              (event.loaded * 100) / event.total
-            );
+        setProgress(percentage);
 
-            setProgress(percentage);
-
-          }
-
-        }
-      );
+      });
 
 
       const jobId = response.data.job_id;
