@@ -3,7 +3,10 @@ from pydantic import BaseModel
 
 from app.services.youtube_service import YouTubeService
 
-router = APIRouter(prefix="/youtube", tags=["YouTube"])
+router = APIRouter(
+    prefix="/youtube",
+    tags=["YouTube"],
+)
 
 service = YouTubeService()
 
@@ -12,7 +15,7 @@ class YoutubeRequest(BaseModel):
     url: str
 
 
-@router.post("/transcript")
-def transcript(data: YoutubeRequest):
+@router.post("/process")
+def process(request: YoutubeRequest):
 
-    return service.get_transcript(data.url)
+    return service.process(request.url)
