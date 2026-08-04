@@ -22,4 +22,6 @@ export const searchMeme = (lyrics) =>
     lyrics,
   });
 
+export const renderVideo = (payload) => api.post("/video/render", payload);
+
 export default api;
