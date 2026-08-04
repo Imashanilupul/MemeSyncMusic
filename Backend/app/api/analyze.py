@@ -19,23 +19,21 @@ analyzer = AudioAnalyzer()
 @router.get("/analyze/{job_id}")
 def analyze_audio(job_id: str):
 
-    files = os.listdir(UPLOAD_FOLDER)
+    filepath = None
 
-    target = None
+    youtube_audio_path = os.path.join(UPLOAD_FOLDER, job_id, "audio.mp3")
+    if os.path.isfile(youtube_audio_path):
+        filepath = youtube_audio_path
+    else:
+        files = os.listdir(UPLOAD_FOLDER)
+        for file in files:
+            candidate_path = os.path.join(UPLOAD_FOLDER, file)
+            if file.startswith(job_id) and os.path.isfile(candidate_path):
+                filepath = candidate_path
+                break
 
-    for file in files:
-
-        if file.startswith(job_id):
-
-            target = file
-
-            break
-
-    if target is None:
-
+    if filepath is None:
         raise HTTPException(status_code=404, detail="Audio not found")
-
-    filepath = os.path.join(UPLOAD_FOLDER, target)
 
     result = analyzer.analyze(filepath)
 

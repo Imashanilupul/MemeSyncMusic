@@ -12,4 +12,14 @@ export const uploadMusic = (formData, onUploadProgress) =>
 
 export const getAnalysis = (jobId) => api.get(`/analyze/${jobId}`);
 
+export const processYouTube = (url) =>
+  api.post("/youtube/process", {
+    url,
+  });
+
+export const searchMeme = (lyrics) =>
+  api.post("/meme/search", {
+    lyrics,
+  });
+
 export default api;
