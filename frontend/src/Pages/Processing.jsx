@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import api, { getAnalysis, searchMeme } from "../Services/api";
+import api, { getAnalysis, renderVideo, searchMeme } from "../Services/api";
 
 function getNearestBeatTime(time, beatTimes) {
   if (!beatTimes.length) {
@@ -41,6 +41,7 @@ function Processing() {
         "Load lyrics/transcript from /youtube/process output",
         "Search meme images from /meme/search for each lyric",
         "Build beat-synced slideshow timeline",
+        "Render the combined video on the backend and send it to the frontend",
       ];
     }
 
@@ -168,6 +169,24 @@ function Processing() {
           setProgress(Math.min(95, Math.round(baseProgress + ratio * 55)));
         }
 
+        setStepMessage("Rendering combined video...");
+        setProgress(97);
+
+        const renderResponse = await renderVideo({
+          job_id: jobId,
+          slides,
+          source,
+          audio_file: audioFile || null,
+        });
+
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "";
+        const normalizedBaseUrl = apiBaseUrl.endsWith("/")
+          ? apiBaseUrl.slice(0, -1)
+          : apiBaseUrl;
+        const normalizedVideoUrl = renderResponse.data.video_url.startsWith("/")
+          ? `${normalizedBaseUrl}${renderResponse.data.video_url}`
+          : `${normalizedBaseUrl}/${renderResponse.data.video_url}`;
+
         const resultPayload = {
           job_id: jobId,
           source,
@@ -175,6 +194,7 @@ function Processing() {
           transcript,
           slides,
           audio_url: audioUrl,
+          video_url: normalizedVideoUrl,
           generated_at: new Date().toISOString(),
         };
 
