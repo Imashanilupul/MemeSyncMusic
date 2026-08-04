@@ -8,6 +8,7 @@ from app.api.analyze import router as analyze_router
 
 # from app.api.transcription import router as transcription_router
 from app.api.youtube import router as youtube_router
+from app.api.meme import router as meme_extractor
 
 app = FastAPI(title="MemeSyncMusic API")
 
@@ -29,6 +30,7 @@ app.include_router(Music_Uploader)
 app.include_router(analyze_router)
 # app.include_router(transcription_router)
 app.include_router(youtube_router)
+app.include_router(meme_extractor)
 
 
 @app.get("/")
