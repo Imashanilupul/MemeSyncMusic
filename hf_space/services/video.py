@@ -1,8 +1,10 @@
 import os
 import textwrap
-from PIL import Image, ImageDraw, ImageFont
+import subprocess
+from io import BytesIO
 
-from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
+import requests
+from PIL import Image, ImageDraw, ImageFont
 
 
 class VideoService:
@@ -13,80 +15,162 @@ class VideoService:
 
         os.makedirs(self.output_dir, exist_ok=True)
 
-    # -----------------------------
-    # Create Meme Frame
-    # -----------------------------
+    # ---------------------------------
+    # Download Meme Image
+    # ---------------------------------
 
-    def create_frame(self, meme_url, lyric, output_path):
+    def download_image(self, url, output_path):
+
+        response = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+
+        response.raise_for_status()
+
+        image = Image.open(BytesIO(response.content)).convert("RGB")
+
+        image.save(output_path, quality=95)
+
+    # ---------------------------------
+    # Create Image Frame With Lyrics
+    # ---------------------------------
+
+    def create_frame(self, image_path, lyric, output_path):
 
         width = 1280
         height = 720
 
-        img = Image.open(meme_url).convert("RGB")
+        image = Image.open(image_path).convert("RGB")
 
-        img.thumbnail((width, height))
+        image.thumbnail((width, height))
 
         canvas = Image.new("RGB", (width, height), "black")
 
-        x = (width - img.width) // 2
+        x = (width - image.width) // 2
+        y = (height - image.height) // 2
 
-        y = (height - img.height) // 2
-
-        canvas.paste(img, (x, y))
+        canvas.paste(image, (x, y))
 
         draw = ImageDraw.Draw(canvas)
 
-        # dark subtitle background
+        # lyric background
 
-        draw.rectangle((0, height - 170, width, height), fill=(0, 0, 0))
+        draw.rectangle((0, 550, width, height), fill=(0, 0, 0))
 
         font = ImageFont.load_default()
 
-        lines = textwrap.wrap(lyric, width=45)
+        wrapped_text = "\n".join(textwrap.wrap(lyric, width=45))
 
         draw.multiline_text(
-            (width // 2, height - 120),
-            "\n".join(lines),
-            font=font,
+            (width // 2, 635),
+            wrapped_text,
             fill="white",
+            font=font,
             anchor="mm",
             align="center",
         )
 
         canvas.save(output_path)
 
-    # -----------------------------
-    # Generate Video
-    # -----------------------------
+    # ---------------------------------
+    # Generate Video Using FFmpeg
+    # ---------------------------------
 
     def render(self, job_id, slides, audio_path):
 
         job_dir = os.path.join(self.output_dir, job_id)
 
-        os.makedirs(job_dir, exist_ok=True)
+        frame_dir = os.path.join(job_dir, "frames")
 
-        clips = []
+        os.makedirs(frame_dir, exist_ok=True)
+
+        print("Creating frames...")
+
+        frame_paths = []
+
+        # Create frames
 
         for index, slide in enumerate(slides):
 
-            frame_path = os.path.join(job_dir, f"frame_{index}.jpg")
+            image_path = os.path.join(frame_dir, f"image_{index}.jpg")
 
-            self.create_frame(slide["image_url"], slide["text"], frame_path)
+            frame_path = os.path.join(frame_dir, f"frame_{index}.jpg")
 
-            duration = slide.get("duration", 3)
+            self.download_image(slide["image_url"], image_path)
 
-            clip = ImageClip(frame_path).with_duration(duration)
+            self.create_frame(image_path, slide.get("text", ""), frame_path)
 
-            clips.append(clip)
+            frame_paths.append(frame_path)
 
-        video = concatenate_videoclips(clips, method="compose")
+        # ---------------------------------
+        # Create FFmpeg concat file
+        # ---------------------------------
 
-        audio = AudioFileClip(audio_path)
+        concat_file = os.path.join(job_dir, "files.txt")
 
-        video = video.with_audio(audio)
+        with open(concat_file, "w", encoding="utf-8") as file:
 
-        output = os.path.join(job_dir, "meme_music_video.mp4")
+            for index, slide in enumerate(slides):
 
-        video.write_videofile(output, fps=30, codec="libx264", audio_codec="aac")
+                absolute_path = os.path.abspath(frame_paths[index])
 
-        return output
+                # Windows path fix
+
+                absolute_path = absolute_path.replace("\\", "/")
+
+                file.write(f"file '{absolute_path}'\n")
+
+                duration = slide.get("duration", 3)
+
+                file.write(f"duration {duration}\n")
+
+            # repeat final frame
+
+            last = os.path.abspath(frame_paths[-1]).replace("\\", "/")
+
+            file.write(f"file '{last}'\n")
+
+        # ---------------------------------
+        # FFmpeg Rendering
+        # ---------------------------------
+
+        output_video = os.path.join(job_dir, "meme_music_video.mp4")
+
+        print("Running FFmpeg...")
+
+        command = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            concat_file,
+            "-i",
+            audio_path,
+            "-vf",
+            "format=yuv420p",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "23",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-shortest",
+            output_video,
+        ]
+
+        result = subprocess.run(command, capture_output=True, text=True)
+
+        if result.returncode != 0:
+
+            print(result.stderr)
+
+            raise Exception("FFmpeg rendering failed")
+
+        print("Video created:", output_video)
+
+        return output_video

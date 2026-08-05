@@ -1,54 +1,76 @@
 import gradio as gr
 import os
 
-from services.youtube import download_youtube_audio
-from services.lyrics import extract_lyrics
-from services.meme import generate_memes
-from services.video import create_video
+from services.youtube import YouTubeService
+from services.lyrics import LyricsService
+from services.meme import MemeService
+from services.video import VideoService
 
 os.makedirs("outputs", exist_ok=True)
 
+youtube = YouTubeService()
+lyrics_service = LyricsService()
+meme_service = MemeService()
+video_service = VideoService()
+
 
 def process_music(youtube_url):
-
     try:
 
-        # Step 1: Download music
+        # Download audio + lyrics
+        data = youtube.process(youtube_url)
 
-        audio_path = download_youtube_audio(youtube_url)
+        audio_path = data["audio_path"]
+        lyrics = data["lyrics"]
 
-        # Step 2: Get lyrics
+        # Clean/process lyrics
+        lyrics = lyrics_service.process(lyrics)
 
-        lyrics = extract_lyrics(youtube_url)
+        # Get memes
+        slides = []
 
-        # Step 3: Find memes
+        for lyric in lyrics:
+            meme = meme_service.best_meme(lyric["text"])
 
-        memes = generate_memes(lyrics)
+            if meme:
+                slides.append(
+                    {
+                        "image_url": meme["image_url"],
+                        "text": lyric["text"],
+                        "duration": lyric["duration"],
+                    }
+                )
 
-        # Step 4: Generate video
-
-        video_path = create_video(audio_path, lyrics, memes)
+        # Create video
+        video_path = video_service.render(
+            job_id=data["job_id"], slides=slides, audio_path=audio_path
+        )
 
         return video_path
 
     except Exception as e:
-
-        return f"Error: {str(e)}"
+        raise gr.Error(str(e))
 
 
 demo = gr.Interface(
     fn=process_music,
-    inputs=gr.Textbox(label="YouTube Music Link", placeholder="Paste YouTube song URL"),
+    inputs=gr.Textbox(
+        label="YouTube Music Link",
+        placeholder="Paste YouTube song URL",
+    ),
     outputs=gr.Video(label="Generated Meme Music Video"),
-    title="MemeSyncMusic 🎵😂",
+    title="🎵 MemeSyncMusic",
     description="""
-    Transform songs into meme-style music videos.
+Turn any English YouTube song into a meme-style music video.
 
-    Currently supports English songs only.
+✔ Downloads the audio
+✔ Extracts lyrics
+✔ Matches memes
+✔ Generates a synchronized video
 
-    More languages coming soon!
-    """,
+Currently supports English songs only.
+More languages coming soon!
+""",
 )
-
 
 demo.launch()

@@ -44,3 +44,6 @@ uploads/
 analysis/
 transcripts/
 outputs/
+
+# gradio
+/.gradio
