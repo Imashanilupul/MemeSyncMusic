@@ -22,6 +22,12 @@ class AudioService:
             sr=sr,
         )
 
+        # librosa.beat.beat_track's return type for `tempo` has changed
+        # across versions — sometimes a plain float, sometimes a size-1
+        # numpy array. float() only accepts a true 0-d array/scalar, so
+        # normalize explicitly instead of assuming either shape.
+        tempo = np.asarray(tempo).reshape(-1)[0]
+
         beat_times = librosa.frames_to_time(
             beat_frames,
             sr=sr,

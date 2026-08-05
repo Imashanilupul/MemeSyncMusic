@@ -5,6 +5,17 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 
 class MemeService:
+    """
+    Single consolidated meme-matching implementation.
+
+    Note: this intentionally drops the Reddit-search variant that was
+    duplicated across files — reddit.com/search.json is an unauthenticated,
+    unsupported endpoint that rate-limits aggressively, and it returns
+    unmoderated images with no NSFW filtering, which isn't safe for an
+    auto-generated video pipeline. Imgflip's curated template set is the
+    only source used here.
+    """
+
     def __init__(self):
         self.nlp = spacy.load("en_core_web_sm")
         self.sentiment = SentimentIntensityAnalyzer()
@@ -25,7 +36,8 @@ class MemeService:
 
             data = response.json()
 
-            if not data["success"]:
+            if not data.get("success"):
+                print("Imgflip API returned success=false")
                 return []
 
             memes = []
@@ -109,23 +121,22 @@ class MemeService:
         meme_name,
         keywords,
     ):
-
-        score = fuzz.token_set_ratio(
+        base_score = fuzz.token_set_ratio(
             lyric.lower(),
             meme_name.lower(),
         )
 
-        for keyword in keywords:
+        if not keywords:
+            return base_score
 
-            score += (
-                fuzz.partial_ratio(
-                    keyword,
-                    meme_name.lower(),
-                )
-                * 0.5
-            )
+        # Average (not sum) across keywords, so lines that happen to yield
+        # more keywords don't automatically outrank shorter lines just from
+        # accumulating more additive bonus points.
+        keyword_score = sum(
+            fuzz.partial_ratio(keyword, meme_name.lower()) for keyword in keywords
+        ) / len(keywords)
 
-        return score
+        return (base_score * 0.6) + (keyword_score * 0.4)
 
     # -----------------------------
     # Find Best Memes
@@ -135,6 +146,15 @@ class MemeService:
         lyric,
         top_k=10,
     ):
+        if not self.memes:
+            # Template pool failed to load at startup — surface an empty,
+            # clearly-labeled result instead of pretending nothing matched.
+            return {
+                "lyric": lyric,
+                "emotion": "neutral",
+                "keywords": [],
+                "results": [],
+            }
 
         emotion = self.detect_emotion(lyric)
 

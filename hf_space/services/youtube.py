@@ -64,7 +64,12 @@ class YouTubeService:
 
             return lyrics
 
-        except Exception:
+        except Exception as e:
+            # Still return [] for the common "no captions" case, but log
+            # *why* — otherwise a real network/API error looks identical to
+            # "this video just has no captions" and main.py can't tell them
+            # apart when deciding how to warn the user.
+            print(f"No transcript available for video {video_id}: {e}")
             return []
 
     def process(self, url: str):
